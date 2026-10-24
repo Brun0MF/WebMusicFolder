@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Unlock - WebMusicFolder{% endblock %}
+{% block body %}
+<main class="login">
+  <button type="button" class="btn btn-ghost theme-toggle login-theme" x-data="themeToggle()" @click="flip()"
+          :aria-label="light ? 'Switch to dark mode' : 'Switch to light mode'"
+          :title="light ? 'Dark mode' : 'Light mode'" x-text="light ? '\u263E' : '\u2600'"></button>
+  <div class="login-bg" aria-hidden="true">
+    <span class="float n1">&#9834;</span><span class="float n2">&#9835;</span><span class="float n3">&#9834;</span>
+    <span class="float n4">&#9835;</span><span class="float n5">&#9834;</span><span class="float n6">&#9835;</span>
+  </div>
+  <div class="login-hero" aria-hidden="true">
+    <span class="glow g1"></span><span class="glow g2"></span>
+    <svg class="login-logo" width="52" height="67" viewBox="4 3 14 18" fill="currentColor"><path d="M9 3v11.3A3.5 3.5 0 1 0 11 17.5V8h7V3z"/></svg>
+  </div>
+  <form method="post" action="/login" class="card">
+    <h1>WebMusicFolder</h1>
+    {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password" autocomplete="current-password" autofocus required>
+    <button type="submit" class="btn">Unlock</button>
+  </form>
+  <footer class="login-credit">
+    <span>Bruno Ferreira</span>
+    <a href="https://github.com/Brun0MF" target="_blank" rel="noopener noreferrer">GitHub: Brun0MF</a>
+    <a href="https://github.com/Brun0MF/WebMusicFolder" target="_blank" rel="noopener noreferrer">WebMusicFolder repo</a>
+  </footer>
+  <span class="eq" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+</main>
+{% endblock %}

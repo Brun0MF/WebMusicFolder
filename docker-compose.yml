@@ -1,0 +1,17 @@
+services:
+  webmusicfolder:
+    build: .
+    image: webmusicfolder:latest
+    container_name: webmusicfolder
+    restart: unless-stopped
+    init: false
+    ports:
+      - "8080:8080"
+    environment:
+      WMF_PASSWORD: "${WMF_PASSWORD:?set WMF_PASSWORD in .env or the shell}"
+      PUID: "${PUID:-1000}"
+      PGID: "${PGID:-1000}"
+      TZ: "${TZ:-UTC}"
+    volumes:
+      - "${WMF_MUSIC_HOST:-/srv/music}:/music"
+      - "./data:/data"

@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} - WebMusicFolder{% endblock %}
+{% block content %}
+<section class="card" x-data="logsPage()" aria-label="yt-dlp output">
+  <div class="filters logs-filters">
+    <select x-model="filter" aria-label="Filter by item">
+      <option value="">All items</option>
+      <template x-for="it in items" :key="it.id"><option :value="it.id" x-text="it.title"></option></template>
+    </select>
+    <label class="check"><input type="checkbox" x-model="follow"> Follow</label>
+    <button type="button" class="btn btn-ghost" @click="clear()">Clear view</button>
+  </div>
+  <p class="muted count" x-show="!connected" x-cloak>Reconnecting...</p>
+  <p class="error" x-show="error" x-cloak role="alert" x-text="error"></p>
+  <div class="logbox" x-ref="box" role="log" aria-live="off" tabindex="0">
+    <p class="muted" x-show="!visible.length" x-cloak>No output yet. Lines from yt-dlp appear here while downloading.</p>
+    <template x-for="e in visible" :key="e.seq">
+      <div class="logline" :class="level(e)"><span class="logtime" x-text="time(e)"></span> <span x-text="e.line"></span></div>
+    </template>
+  </div>
+</section>
+{% endblock %}

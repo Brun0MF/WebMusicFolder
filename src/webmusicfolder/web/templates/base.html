@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <meta name="theme-color" content="#0d1117">
+  <title>{% block title %}WebMusicFolder{% endblock %}</title>
+  <link rel="icon" type="image/svg+xml" href="/static/img/icon.svg">
+  <script>
+    /* Apply the saved theme before first paint so there is no flash. */
+    try { var t = localStorage.getItem("wmf-theme"); if (t === "light" || t === "dark") document.documentElement.dataset.theme = t; } catch (e) {}
+  </script>
+  <link rel="stylesheet" href="/static/css/app.css">
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <script src="/static/vendor/htmx.min.js" defer></script>
+  <script src="/static/js/app.js" defer></script>
+  <script src="/static/vendor/alpine.min.js" defer></script>
+</head>
+<body hx-headers='{"X-CSRF-Token": "{{ csrf_token }}"}'>
+{% block body %}
+  <header class="topbar">
+    <span class="brand">
+      <svg width="20" height="20" viewBox="-1 0 24 24" fill="currentColor" aria-hidden="true"><path d="M9 3v11.3A3.5 3.5 0 1 0 11 17.5V8h7V3z"/></svg>
+      WebMusicFolder</span>
+    <div class="topbar-actions">
+      <button type="button" class="btn btn-ghost theme-toggle" x-data="themeToggle()" @click="flip()"
+            :aria-label="light ? 'Switch to dark mode' : 'Switch to light mode'"
+            :title="light ? 'Dark mode' : 'Light mode'" x-text="light ? '\u263E' : '\u2600'"></button>
+      <form method="post" action="/logout">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="btn btn-ghost">Exit</button>
+      </form>
+    </div>
+  </header>
+  <nav class="tabs" aria-label="Sections">
+    {% for key, href, label in tabs %}
+      <a href="{{ href }}" class="tab{% if key == active %} active{% endif %}"
+         {% if key == active %}aria-current="page"{% endif %}>{{ label }}</a>
+    {% endfor %}
+  </nav>
+  <main class="content">
+    <h1>{{ title }}</h1>
+    {% block content %}{% endblock %}
+  </main>
+{% endblock %}
+</body>
+</html>

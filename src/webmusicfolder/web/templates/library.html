@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} - WebMusicFolder{% endblock %}
+{% block content %}
+<div x-data="libraryPage()">
+<section class="card" aria-labelledby="folders-h">
+  <div class="card-head">
+    <h2 id="folders-h">Folders</h2>
+    <form class="row inline" @submit.prevent="createFolder()">
+      <input type="text" x-model="newFolder" maxlength="80" placeholder="New folder name"
+             aria-label="New folder name" autocomplete="off">
+      <button type="submit" class="btn" :disabled="!newFolder.trim() || folderBusy">Create folder</button>
+    </form>
+  </div>
+  <p class="error" x-show="folderError" x-cloak role="alert" x-text="folderError"></p>
+  <p class="muted" x-show="!folders.length" x-cloak>No subfolders yet. Tracks live in the music root.</p>
+  <ul class="chips">
+    <template x-for="f in folders" :key="f.name">
+      <li class="chip">
+        <button type="button" class="chip-name" @click="subfolder = f.name; load()" :title="'Show ' + f.name">
+          <span x-text="f.name"></span><span class="chip-count" x-text="f.count"></span>
+        </button>
+        <button type="button" class="chip-x" @click="removeFolder(f)" :aria-label="'Delete folder ' + f.name"
+                title="Delete folder and its tracks">&times;</button>
+      </li>
+    </template>
+  </ul>
+</section>
+
+<section class="card">
+  <form class="filters" @submit.prevent="load()" role="search" aria-label="Filter library">
+    <input type="search" x-model="q" @input="later(250)" placeholder="Search title or artist"
+           aria-label="Search title or artist" maxlength="200">
+    <select x-model="subfolder" @change="load()" aria-label="Subfolder">
+      <option value="">All folders</option>
+      <option value="/">(music root)</option>
+      <template x-for="name in subfolders.filter((n) => n !== '')" :key="name">
+        <option :value="name" x-text="name"></option>
+      </template>
+    </select>
+    <select x-model="source" @change="load()" aria-label="Source">
+      <option value="">App and External</option>
+      <option value="App">App</option>
+      <option value="External">External</option>
+    </select>
+    <button type="button" class="btn btn-ghost" @click="rescan()" :disabled="loading">Rescan</button>
+  </form>
+
+  <div class="bulkbar" :class="{ active: selected.size }">
+    <label class="check">
+      <input type="checkbox" :checked="allSelected" :indeterminate.prop="selected.size > 0 && !allSelected"
+             @change="toggleAll($event.target.checked)" :disabled="!entries.length" aria-label="Select all shown tracks">
+      <span x-text="selected.size ? `${selected.size} selected` : 'Select all'"></span>
+    </label>
+    <div class="bulk-actions" x-show="selected.size" x-cloak>
+      <select x-model="moveTarget" aria-label="Move selected to">
+        <option value="" disabled>Move to...</option>
+        <option value="/">(music root)</option>
+        <template x-for="f in folders" :key="f.name"><option :value="f.name" x-text="f.name"></option></template>
+      </select>
+      <button type="button" class="btn" @click="moveSelected()" :disabled="bulkBusy || !moveTarget">Move</button>
+      <button type="button" class="btn btn-ghost btn-danger" @click="deleteSelected()" :disabled="bulkBusy">Delete selected</button>
+      <button type="button" class="btn btn-ghost" @click="selected = new Set()">Clear</button>
+    </div>
+    <p class="muted count" role="status" x-show="!selected.size"
+       x-text="loading ? 'Scanning...' : `${entries.length} of ${total} track(s)`"></p>
+  </div>
+  <p class="ok" x-show="notice" x-cloak role="status" x-text="notice"></p>
+  <p class="error" x-show="error" x-cloak role="alert" x-text="error"></p>
+  <p class="muted" x-show="!loading && !entries.length" x-cloak>No tracks found.</p>
+
+  <ul class="tracks">
+    <template x-for="entry in entries" :key="entry.path">
+      <li class="track" :class="{ selected: selected.has(entry.path) }">
+        <input type="checkbox" class="pick" :checked="selected.has(entry.path)"
+               @change="toggle(entry.path, $event.target.checked)" :aria-label="'Select ' + entry.title">
+        <img class="cover" :src="coverUrl(entry)" loading="lazy" width="48" height="48" alt="">
+        <div class="track-info">
+          <span class="track-title" x-text="entry.title"></span>
+          <span class="track-sub" x-text="subline(entry)"></span>
+          <span class="track-meta">
+            <span x-text="duration(entry)"></span>
+            <span x-text="size(entry)"></span>
+            <span x-text="folderLabel(entry.subfolder)"></span>
+          </span>
+        </div>
+        <span class="badge" :class="entry.source.toLowerCase()" x-text="entry.source"></span>
+        <a class="btn btn-ghost yt-link" x-show="entry.source === 'App' && entry.video_id" x-cloak
+           :href="youtubeUrl(entry)" target="_blank" rel="noopener noreferrer"
+           :aria-label="'Open ' + entry.title + ' on YouTube (new tab)'">Open on YouTube</a>
+        <button type="button" class="btn btn-ghost" x-show="entry.source === 'External'" x-cloak
+                @click="openLink(entry)">Link to YouTube</button>
+        <button type="button" class="btn btn-ghost btn-danger" @click="remove(entry)"
+                :disabled="deleting === entry.path">Delete</button>
+        <form class="link-form" x-show="linking === entry.path" x-cloak @submit.prevent="saveLink(entry)">
+          <input type="url" x-model="linkText" placeholder="https://www.youtube.com/watch?v=..."
+                 aria-label="YouTube link for this file" maxlength="500" required>
+          <button type="submit" class="btn" :disabled="linkBusy || !linkText.trim()">Link</button>
+          <button type="button" class="btn btn-ghost" @click="linking = ''">Cancel</button>
+          <p class="muted">Adds the video id to the file's tags (nothing else changes), so a later submit of this link shows it as already downloaded.</p>
+          <p class="error" x-show="linkError" x-cloak role="alert" x-text="linkError"></p>
+        </form>
+      </li>
+    </template>
+  </ul>
+</section>
+</div>
+{% endblock %}

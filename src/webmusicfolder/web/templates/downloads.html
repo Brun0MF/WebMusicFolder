@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} - WebMusicFolder{% endblock %}
+{% block content %}
+<section class="card" x-data="searchBox()" aria-label="Search by name">
+  <form @submit.prevent="run()" class="row search" role="search">
+    <input type="search" x-model="q" maxlength="200" placeholder="Search YouTube by name"
+           aria-label="Search YouTube by name" autocomplete="off">
+    <button type="submit" class="btn" :disabled="busy || !q.trim()">Search</button>
+  </form>
+  <p class="muted" x-show="busy" x-cloak role="status">Searching...</p>
+  <p class="error" x-show="error" x-cloak role="alert" x-text="error"></p>
+  <p class="muted" x-show="done && !results.length && !error" x-cloak>No results.</p>
+  <ul class="links results" x-show="results.length" x-cloak>
+    <template x-for="r in results" :key="r.video_id">
+      <li>
+        <span class="url">
+          <span x-text="r.title"></span>
+          <span class="detail" x-text="`${r.channel} - ${clock(r.duration_s)}`"></span>
+        </span>
+        <span class="badge" x-show="r.state" x-cloak
+              x-text="r.state === 'exists' ? 'in library' : 'in queue'"></span>
+        <button type="button" class="btn btn-ghost" @click="add(r)" :disabled="added.has(r.video_id)"
+                x-text="added.has(r.video_id) ? 'Added' : 'Add'"></button>
+      </li>
+    </template>
+  </ul>
+</section>
+
+<section class="card" x-data="submitForm()" x-init="loadFolders()" @add-link.window="addLink($event.detail)">
+  <form @submit.prevent="preview()" class="stack" aria-label="Add links">
+    <label for="links">Links (one per line, videos or playlists)</label>
+    <textarea id="links" x-model="links" rows="6" spellcheck="false"
+              placeholder="https://www.youtube.com/watch?v=..." required></textarea>
+
+    <label for="subfolder">Subfolder (optional, a new name creates it)</label>
+    <input id="subfolder" x-model="subfolder" list="folder-list" maxlength="80"
+           autocomplete="off" placeholder="music root">
+    <datalist id="folder-list">
+      <template x-for="name in folders" :key="name"><option :value="name"></option></template>
+    </datalist>
+
+    <div class="row">
+      <button type="submit" class="btn" :disabled="busy || !links.trim()">Preview</button>
+      <span class="muted" x-show="busy" x-cloak role="status">Resolving links...</span>
+    </div>
+  </form>
+
+  <p class="error" x-show="error" x-cloak role="alert" x-text="error"></p>
+  <p class="ok" x-show="message" x-cloak role="status" x-text="message"></p>
+
+  <div x-show="result" x-cloak class="preview">
+    <h2 x-text="`${result.total} video(s) will be queued` + (result.subfolder ? ` in ${result.subfolder}` : '')"></h2>
+    <ul class="links">
+      <template x-for="link in result.links" :key="link.line">
+        <li :class="{ bad: link.error }">
+          <span class="tag" x-text="link.kind"></span>
+          <span class="url" x-text="link.line"></span>
+          <span class="detail" x-show="!link.error && link.kind === 'playlist'"
+                x-text="`${link.count} videos` + (link.skipped ? `, ${link.skipped} unavailable` : '')"></span>
+          <span class="detail" x-show="link.error" x-text="link.error"></span>
+        </li>
+      </template>
+    </ul>
+    <div x-show="inQueue.length" class="notice" role="status">
+      <strong x-text="`${inQueue.length} already in queue`"></strong>
+      <span class="muted"> and will not be added again.</span>
+    </div>
+    <div x-show="existing.length" class="dupes" role="group" aria-label="Already downloaded">
+      <div class="dupes-head">
+        <strong x-text="`${existing.length} already in your library`"></strong>
+        <span class="row">
+          <button type="button" class="btn btn-ghost" @click="setAll('skip')">Skip all</button>
+          <button type="button" class="btn btn-ghost" @click="setAll('redownload')">Redownload all</button>
+        </span>
+      </div>
+      <ul class="links">
+        <template x-for="d in existing" :key="d.video_id">
+          <li>
+            <span class="url">
+              <span x-text="d.title || d.video_id"></span>
+              <span class="detail" x-text="d.path"></span>
+            </span>
+            <span class="choice">
+              <label><input type="radio" :name="'dup-' + d.video_id" value="skip" x-model="choice[d.video_id]"> Skip</label>
+              <label><input type="radio" :name="'dup-' + d.video_id" value="redownload" x-model="choice[d.video_id]"> Redownload</label>
+            </span>
+          </li>
+        </template>
+      </ul>
+    </div>
+    <div class="row">
+      <button type="button" class="btn" @click="confirm()" :disabled="busy || !result.total">
+        <span x-text="toQueue.length ? `Add ${toQueue.length} to queue` : 'Nothing to add'"></span>
+      </button>
+      <button type="button" class="btn btn-ghost" @click="result = null">Cancel</button>
+    </div>
+  </div>
+</section>
+
+<section class="card queue" x-data="queueList()" x-init="start()" aria-label="Download queue">
+  <div class="queue-head">
+    <h2 x-text="summary"></h2>
+    <span class="muted" x-show="!connected" x-cloak>Reconnecting...</span>
+    <button type="button" class="btn btn-ghost" x-show="count('failed')" x-cloak
+            @click="retryAll()">Retry all failed</button>
+    <button type="button" class="btn btn-ghost" x-show="count('done') + count('failed')" x-cloak
+            @click="bulkAct('dismiss_all')">Dismiss all</button>
+    <button type="button" class="btn btn-ghost btn-danger" x-show="remaining" x-cloak
+            @click="cancelAll()">Cancel all</button>
+  </div>
+  <p class="error" x-show="paused" x-cloak role="alert">
+    Queue paused: <span x-text="paused"></span>
+  </p>
+  <p class="error" x-show="error" x-cloak role="alert" x-text="error"></p>
+  <p class="muted" x-show="!items.length" x-cloak>Nothing here yet. Add some links above.</p>
+  <ul class="items">
+    <template x-for="item in sorted" :key="item.id">
+      <li :class="'item ' + item.status">
+        <div class="item-main">
+          <span class="item-title" x-text="item.title || item.video_id"></span>
+          <span class="badge" :class="item.status" x-text="item.status"></span>
+        </div>
+        <div class="bar" :class="{ indeterminate: indeterminate(item) }" x-show="item.status === 'downloading'" x-cloak
+             role="progressbar" aria-valuemin="0" aria-valuemax="100" :aria-valuenow="pct(item)">
+          <div class="bar-fill" :style="`width: ${pct(item)}%`"></div>
+        </div>
+        <div class="item-meta">
+          <span class="detail">
+            <span x-text="detail(item)"></span>
+            <span x-show="item.status === 'downloading' && !indeterminate(item)" x-cloak x-text="pct(item) + ' %'"></span>
+            <a href="/settings#cookies" x-show="item.status === 'failed' && needsCookies(item)" x-cloak>Open Settings</a>
+            <details class="raw" x-show="item.status === 'failed' && parts(item).raw" x-cloak>
+              <summary>Details</summary>
+              <span x-text="parts(item).raw"></span>
+            </details>
+          </span>
+          <span class="item-actions">
+            <button type="button" class="btn btn-ghost" x-show="item.status === 'failed'" x-cloak
+                    @click="act(item, 'retry')">Retry</button>
+            <button type="button" class="btn btn-ghost"
+                    @click="act(item, 'cancel')"
+                    x-text="item.status === 'done' || item.status === 'failed' ? 'Dismiss' : 'Cancel'"></button>
+          </span>
+        </div>
+      </li>
+    </template>
+  </ul>
+  <div class="toasts" aria-live="polite">
+    <template x-for="t in toasts" :key="t.id">
+      <div class="toast" role="alert" x-text="t.text"></div>
+    </template>
+  </div>
+</section>
+{% endblock %}

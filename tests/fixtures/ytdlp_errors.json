@@ -1,0 +1,23 @@
+[
+  {"code": "private", "message": "ERROR: [youtube] aaaaaaaaaaa: Private video. Sign in if you've been granted access to this video"},
+  {"code": "private", "message": "ERROR: [youtube:tab] PLxyz: The playlist does not exist. This playlist is private"},
+  {"code": "private", "message": "ERROR: [youtube] aaaaaaaaaaa: This video is private"},
+  {"code": "private", "message": "ERROR: [youtube] aaaaaaaaaaa: Join this channel to get access to members-only content like this video"},
+  {"code": "unavailable", "message": "ERROR: [youtube] aaaaaaaaaaa: Video unavailable. This video is not available"},
+  {"code": "unavailable", "message": "ERROR: [youtube] aaaaaaaaaaa: Video unavailable. The uploader has not made this video available in your country"},
+  {"code": "unavailable", "message": "ERROR: [youtube] aaaaaaaaaaa: Video unavailable. This video has been removed by the uploader"},
+  {"code": "unavailable", "message": "ERROR: [youtube] aaaaaaaaaaa: Premieres in 3 hours"},
+  {"code": "unavailable", "message": "ERROR: Unsupported URL: https://example.com/x"},
+  {"code": "age_restricted", "message": "ERROR: [youtube] aaaaaaaaaaa: Sign in to confirm your age. This video may be inappropriate for some users."},
+  {"code": "login", "message": "ERROR: [youtube] aaaaaaaaaaa: Sign in to confirm you’re not a bot. Use --cookies-from-browser or --cookies for the authentication."},
+  {"code": "login", "message": "WARNING: The provided YouTube account cookies are no longer valid. They have likely been rotated in the browser"},
+  {"code": "network", "message": "ERROR: [youtube] aaaaaaaaaaa: Unable to download webpage: <urlopen error [Errno -3] Temporary failure in name resolution>"},
+  {"code": "network", "message": "ERROR: unable to download video data: HTTP Error 403: Forbidden"},
+  {"code": "network", "message": "ERROR: [download] Got error: HTTP Error 429: Too Many Requests"},
+  {"code": "network", "message": "ERROR: [youtube] aaaaaaaaaaa: Unable to download API page: The read operation timed out"},
+  {"code": "ffmpeg", "message": "ERROR: Postprocessing: ffprobe and ffmpeg not found. Please install or provide the path using --ffmpeg-location"},
+  {"code": "ffmpeg", "message": "ERROR: Postprocessing: Conversion failed!"},
+  {"code": "disk_full", "message": "OSError: [Errno 28] No space left on device"},
+  {"code": "permission", "message": "PermissionError: [Errno 13] Permission denied: '/music/geek'"},
+  {"code": "unknown", "message": "Something nobody has seen before"}
+]

@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} - WebMusicFolder{% endblock %}
+{% block content %}
+<div x-data="settingsPage()">
+  <section class="card" aria-labelledby="general-h">
+    <h2 id="general-h">General</h2>
+    <p class="muted">Saved on the server and kept across restarts. They override the environment values (<code>WMF_MUSIC_DIR</code>, <code>WMF_QUALITY</code>, <code>WMF_CONCURRENCY</code>), which stay as the defaults.</p>
+    <form class="stack" @submit.prevent="saveConfig({ music_dir: config.music_dir })">
+      <label for="music-dir">Music folder</label>
+      <div class="row inline">
+        <input id="music-dir" type="text" x-model="config.music_dir" maxlength="1024" spellcheck="false" autocomplete="off">
+        <button type="submit" class="btn" :disabled="config.busy">Save folder</button>
+        <button type="button" class="btn btn-ghost" :disabled="config.busy || config.music_dir === config.default_music_dir"
+                @click="saveConfig({ music_dir: '' })">Use default</button>
+      </div>
+      <p class="muted">Absolute path on the server (in Docker it must be inside a mounted volume to survive container recreation). Default: <code x-text="config.default_music_dir"></code>. Existing files are not moved; tracks that are not found in the new folder are treated as not downloaded. Cannot change while a download runs.</p>
+    </form>
+    <div class="grid2">
+      <div class="stack">
+        <label for="quality">MP3 quality</label>
+        <select id="quality" x-model="config.quality" x-effect="syncSelect($el, config.quality, config.qualities.length)"
+                @change="saveConfig({ quality: config.quality })" :disabled="config.busy">
+          <template x-for="q in config.qualities" :key="q"><option :value="q" x-text="qualityLabel(q)"></option></template>
+        </select>
+        <p class="muted">YouTube audio is already compressed (about 130 to 160 kbps), so very high settings only make bigger files, not better sound. V5 or V2 is plenty; V0 and 320k can be twice the size.</p>
+      </div>
+      <div class="stack">
+        <label for="concurrency">Parallel downloads</label>
+        <select id="concurrency" x-model.number="config.concurrency" x-effect="syncSelect($el, config.concurrency, config.max_concurrency)" @change="saveConfig({ concurrency: config.concurrency })" :disabled="config.busy">
+          <template x-for="n in config.max_concurrency" :key="n"><option :value="n" x-text="n"></option></template>
+        </select>
+      </div>
+    </div>
+    <p class="muted">Data folder (state, logs, cookies): <code x-text="config.data_dir"></code>, set with <code>WMF_DATA_DIR</code>.</p>
+    <p class="ok" x-show="config.message" x-cloak role="status" x-text="config.message"></p>
+    <p class="error" x-show="config.error" x-cloak role="alert" x-text="config.error"></p>
+  </section>
+
+  <section class="card" aria-labelledby="password-h">
+    <h2 id="password-h">Password</h2>
+    <p class="muted">Change the password used to unlock the app. It is stored as a salted hash in the data folder and replaces <code>WMF_PASSWORD</code>. Other devices are signed out. To go back to <code>WMF_PASSWORD</code>, delete <code>password.json</code> from the data folder.</p>
+    <form class="stack" @submit.prevent="changePassword()" autocomplete="off">
+      <label for="pw-current">Current password</label>
+      <input id="pw-current" type="password" x-model="pw.current" autocomplete="current-password" maxlength="200" required>
+      <label for="pw-new">New password (at least 8 characters)</label>
+      <input id="pw-new" type="password" x-model="pw.next" autocomplete="new-password" minlength="8" maxlength="200" required>
+      <label for="pw-again">Repeat new password</label>
+      <input id="pw-again" type="password" x-model="pw.again" autocomplete="new-password" minlength="8" maxlength="200" required>
+      <div class="row"><button type="submit" class="btn" :disabled="pw.busy">Change password</button></div>
+    </form>
+    <p class="ok" x-show="pw.message" x-cloak role="status" x-text="pw.message"></p>
+    <p class="error" x-show="pw.error" x-cloak role="alert" x-text="pw.error"></p>
+  </section>
+
+  <section class="card" aria-labelledby="ytdlp-h">
+    <h2 id="ytdlp-h">yt-dlp</h2>
+    <p class="muted">When YouTube changes and downloads start failing, update yt-dlp here. The new version is kept in the data volume and used from the next download on; no image rebuild needed.</p>
+    <p>Installed version: <strong x-text="ytdlp.version || '...'"></strong></p>
+    <div class="row">
+      <button type="button" class="btn" @click="updateYtdlp()" :disabled="ytdlp.busy">
+        <span x-text="ytdlp.busy ? 'Updating...' : 'Update yt-dlp'"></span>
+      </button>
+      <span class="muted" x-show="ytdlp.busy" x-cloak role="status">Downloading the latest release, this can take a minute.</span>
+    </div>
+    <p class="ok" x-show="ytdlp.result" x-cloak role="status" x-text="updateText"></p>
+    <p class="error" x-show="ytdlp.error" x-cloak role="alert" x-text="ytdlp.error"></p>
+    <p class="muted">Updates wait for an idle queue: if a download is running the button reports it and nothing changes.</p>
+  </section>
+
+  <section class="card" aria-labelledby="options-h">
+    <h2 id="options-h">Download options</h2>
+    <p class="muted">Both apply to downloads that start after the change.</p>
+    <div class="stack">
+      <label class="check">
+        <input type="checkbox" x-model="options.sponsorblock" @change="saveOption('sponsorblock')" :disabled="options.busy">
+        Remove non music segments (SponsorBlock)
+      </label>
+      <p class="muted">Cuts sponsor reads, self promotion, interaction reminders and non music parts out of the MP3 using the community SponsorBlock database. Intros and outros are kept. If the SponsorBlock service is unreachable the track is downloaded uncut.</p>
+      <label class="check">
+        <input type="checkbox" x-model="options.replaygain" @change="saveOption('replaygain')" :disabled="options.busy">
+        Add ReplayGain loudness tags
+      </label>
+      <p class="muted">Measures each track and stores a gain value in the file so players that support ReplayGain play everything at a similar volume. The audio itself is not changed. Tracks already in the library are not touched.</p>
+    </div>
+    <p class="error" x-show="options.error" x-cloak role="alert" x-text="options.error"></p>
+  </section>
+
+  <section class="card settings-card" id="cookies" aria-labelledby="cookies-h">
+    <h2 id="cookies-h">YouTube cookies</h2>
+    <p class="muted">Needed for private playlists and age restricted videos. Export a <code>cookies.txt</code> (Netscape format) from your browser while on YouTube, for example with the "Get cookies.txt LOCALLY" extension, then upload or paste it.</p>
+    <p class="warn" role="note">These cookies give access to the Google account they came from. Use a dedicated account if you can. The file is stored on the server with mode 0600 and is never shown again or written to the logs.</p>
+
+    <p>
+      Status:
+      <strong x-text="cookies.loaded ? 'Cookies loaded' : 'No cookies'"></strong>
+      <span class="muted" x-show="cookies.loaded" x-cloak x-text="'(saved ' + savedAt() + ')'"></span>
+    </p>
+    <p>
+      Source in use:
+      <strong x-text="cookieSource"></strong>
+    </p>
+    <p class="muted" x-show="cookies.browser" x-cloak>The server reads cookies straight from the browser set in <code>WMF_COOKIES_FROM_BROWSER</code> (local runs only). An uploaded cookies.txt takes precedence while it exists.</p>
+
+    <div class="stack">
+      <label for="cookies-file">Upload cookies.txt</label>
+      <input id="cookies-file" type="file" accept=".txt,text/plain" @change="pickFile($event)" :disabled="cookies.busy">
+      <label for="cookies-text">Or paste its content</label>
+      <textarea id="cookies-text" x-model="cookies.text" rows="5" spellcheck="false" autocomplete="off"
+                placeholder="# Netscape HTTP Cookie File"></textarea>
+    </div>
+    <div class="row">
+      <button type="button" class="btn" @click="saveCookies(cookies.text)" :disabled="cookies.busy || !cookies.text.trim()">Save pasted cookies</button>
+      <button type="button" class="btn btn-ghost" x-show="cookies.loaded" x-cloak @click="deleteCookies()" :disabled="cookies.busy">Delete cookies</button>
+    </div>
+    <p class="ok" x-show="cookies.message" x-cloak role="status" x-text="cookies.message"></p>
+    <p class="error" x-show="cookies.error" x-cloak role="alert" x-text="cookies.error"></p>
+    <p class="muted">Cookies expire or rotate. If downloads start asking to sign in again, export a fresh file and upload it again.</p>
+  </section>
+</div>
+{% endblock %}

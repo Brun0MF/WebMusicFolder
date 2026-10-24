@@ -1,0 +1,11 @@
+.venv
+.git
+data
+__pycache__
+.pytest_cache
+.ruff_cache
+tests
+docs
+.env
+music
+dist
